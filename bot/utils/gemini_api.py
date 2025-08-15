@@ -2,23 +2,20 @@ import os
 import logging
 import google.generativeai as genai
 from .key_manager import GEMINI_KEYS
+from ..utils.notification import notify_admin
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL","gemini-1.5-flash")
 
 # خواندن آی‌دی ادمین‌ها از .env
 # در .env باید چیزی مثل این باشه:
-# ADMIN_IDS=7310546722,7321546722
-ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()}
+# ADMIN_IDs=7310546722,7321546722
+ADMIN_IDs = {int(x) for x in os.getenv("ADMIN_IDs", "").split(",") if x.strip().isdigit()}
 
 logger = logging.getLogger(__name__)
 def _is_quota_error(msg: str) -> bool:
     if not msg: return False
     m = msg.lower()
     return ("quota" in m) or ("rate limit" in m) or ("resource exhausted" in m) or ("429" in m)
-
-def send_admin_message(msg: str):
-    # این تابع باید پیامت رو به تلگرام ادمین‌ها بفرسته
-    pass
 
 def process_with_gemini(instruction: str, text: str) -> str:
     tried = set()
@@ -33,7 +30,6 @@ def process_with_gemini(instruction: str, text: str) -> str:
 
         log_msg = f"🔍 در حال بررسی کلید شماره {idx}"
         logger.info(log_msg)
-        send_admin_message(log_msg)
 
         try:
             genai.configure(api_key=key)
@@ -54,15 +50,11 @@ def process_with_gemini(instruction: str, text: str) -> str:
             if _is_quota_error(msg):
                 warn_msg = f"❌ کلید شماره {idx} اعتبار ندارد. کلید بعدی را تست می‌کنم."
                 logger.warning(warn_msg)
-                send_admin_message(warn_msg)
                 GEMINI_KEYS.mark_cooldown(key, 600)
                 continue
             raise
 
     final_msg = "🚫 هیچیک از کلیدهای جمنای معتبر نیستند."
     logger.error(final_msg)
-    send_admin_message(final_msg)
-
-    if last_err:
-        raise last_err
-    raise RuntimeError("No GEMINI_API_KEYS/GEMINI_API_KEY configured")
+    
+    raise RuntimeError(final_msg)

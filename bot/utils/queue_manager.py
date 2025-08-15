@@ -1,5 +1,6 @@
 from .openai_api import process_with_openai
 from .gemini_api import process_with_gemini
+from ..utils.notification import notify_admin
 
 class Job:
     def __init__(self, job_id: int, user, text: str, instruction: str,
@@ -81,6 +82,7 @@ class QueueManager:
         except Exception as e1:
             msg1 = str(e1)
             if self.logger: self.logger.error(f"Job {job.job_id} failed on {primary}: {msg1}")
+            await notify_admin(job.bot, f"Job {job.job_id} failed on fallback {primary}: {msg1}")
 
             # فقط وقتی شبیه خطای سهمیه است، به موتور دوم سوئیچ کن
             if not _is_quota_like(msg1):
@@ -100,4 +102,5 @@ class QueueManager:
                 msg2 = str(e2)
                 if self.logger: self.logger.error(f"Job {job.job_id} failed on fallback {fallback}: {msg2}")
                 await job.bot.send_message(job.chat_id, f"❌ پردازش انجام نشد — {msg2[:300]}")
+                await notify_admin(job.bot, f"Job {job.job_id} failed on fallback {fallback}: {msg2}")
                 job.db_update_job(job.job_id, status="error", error_message=msg2)

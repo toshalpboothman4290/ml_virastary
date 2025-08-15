@@ -8,7 +8,7 @@ from aiogram.filters import Command
 router = Router()
 
 def is_admin(user_id: int) -> bool:
-    ids = (os.getenv("ADMIN_IDS") or "").split(",")
+    ids = (os.getenv("ADMIN_IDs") or "").split(",")
     ids = [x.strip() for x in ids if x.strip()]
     return str(user_id) in ids
 
