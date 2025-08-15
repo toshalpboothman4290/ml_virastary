@@ -1,0 +1,7 @@
+services:
+  - type: worker
+    name: virastary-bot-worker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m bot.main
+    autoDeploy: true

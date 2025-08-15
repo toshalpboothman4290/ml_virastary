@@ -1,0 +1,14 @@
+# python -m venv .venv
+# .venv\Scripts\activate
+# pip install -r requirements.txt
+# pip install --upgrade --force-reinstall -r requirements.txt
+
+
+aiogram==2.25.2
+python-dotenv==1.0.1
+openai==1.43.0
+google-generativeai==0.7.2
+tiktoken==0.7.0
+httpx==0.27.2
+boto3
+psycopg2
