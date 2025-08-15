@@ -1,5 +1,7 @@
 import os
-from aiogram import types, Dispatcher
+from aiogram import Router
+from aiogram.filters import Command
+from aiogram.types import Message
 from bot.utils.upload_to_supabase_s3 import upload_file_to_s3
 from ..database import upsert_user
 from ..utils.settings_manager import (
@@ -8,44 +10,39 @@ from ..utils.settings_manager import (
     get_allowed_languages,
 )
 
+router = Router()
+
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PROFILE_PICS_PATH = os.path.join(ROOT_DIR, "static/profile_pics")
 
-def register(dp: Dispatcher, bot):
-    @dp.message_handler(commands=["start", "help"])
-    async def start(message: types.Message):
-        # 🖼️ Try to fetch and save profile photo (optional)
-        try:
-            photos = await bot.get_user_profile_photos(message.from_user.id)
-            if photos.total_count > 0:
-                file = await bot.get_file(photos.photos[0][-1].file_id)
-                local_folder  = PROFILE_PICS_PATH
-                os.makedirs(local_folder, exist_ok=True)
-                local_path = f"{local_folder}/{message.from_user.id}.jpg"
-                remote_key = f"profile_pics/{message.from_user.id}.jpg"
+@router.message(Command(commands=["start", "help"]))
+async def start(message: Message):
+    try:
+        photos = await message.bot.get_user_profile_photos(message.from_user.id)
+        if photos.total_count > 0:
+            file = await message.bot.get_file(photos.photos[0][-1].file_id)
+            os.makedirs(PROFILE_PICS_PATH, exist_ok=True)
+            local_path = f"{PROFILE_PICS_PATH}/{message.from_user.id}.jpg"
+            remote_key = f"profile_pics/{message.from_user.id}.jpg"
 
-                await bot.download_file(file_path=file.file_path, destination=local_path)
+            await message.bot.download_file(file.file_path, local_path)
+            upload_file_to_s3(local_path, remote_key)
+            os.remove(local_path)
+    except Exception as e:
+        print(f"⚠️ Failed to fetch profile picture: {e}")
 
-                upload_file_to_s3(local_path, remote_key)
+    upsert_user(
+        message.from_user.id,
+        message.from_user.full_name,
+        message.from_user.username or "",
+        f"{message.from_user.id}.jpg"
+    )
 
-                os.remove(local_path)  # optional: clean up
-        except Exception as e:
-            print(f"⚠️ Failed to fetch profile picture: {e}")
+    langs = ", ".join(get_allowed_languages())
+    max_words = get_max_words()
+    rate = get_rate_limit_seconds()
 
-        # ثبت/به‌روزرسانی کاربر
-        upsert_user(
-            message.from_user.id,
-            message.from_user.full_name,
-            message.from_user.username or "",
-            f"{message.from_user.id}.jpg"
-        )
-
-        # خواندن تنظیمات پویا
-        langs = ", ".join(get_allowed_languages())
-        max_words = get_max_words()
-        rate = get_rate_limit_seconds()
-
-        welcome = f"""
+    await message.answer(f"""
 <b>👋 سلام! به بات ویراستار هوشمند خوش آمدی</b>
 
 من متن تو را با حفظ لحن و معنا ویراستاری می‌کنم (غلط‌گیری املایی، علائم، فاصله‌گذاری و روان‌سازی).
@@ -76,14 +73,5 @@ def register(dp: Dispatcher, bot):
 • حداکثر طول متن: <b>{max_words}</b> کلمه  
 • فاصلهٔ بین دو درخواست: <b>{rate}</b> ثانیه
 
-<b>📤 چگونه ارسال کنم؟</b>
-<b>جهت ارسال متن:</b>  
-• متن خود را مستقیم اینجا تایپ یا پیست کنید و ارسال کنید.
-<b>جهت ارسال فایل:</b>  
-• فایل <code>.txt</code> با کدینگ UTF-8 آماده کنید.  
-• از منوی ارسال فایل تلگرام، گزینه <b>ارسال به صورت فایل</b> را انتخاب کنید (نه ارسال به صورت پیام متنی).  
-• فایل را بفرستید تا پردازش شود.
-
 ✅ حالا متن یا فایل‌ات را بفرست تا شروع کنیم.
-"""
-        await message.answer(welcome.strip())
+""".strip())

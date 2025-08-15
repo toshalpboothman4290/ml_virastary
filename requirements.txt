@@ -4,7 +4,7 @@
 # pip install --upgrade --force-reinstall -r requirements.txt
 
 
-aiogram==2.25.2
+aiogram
 python-dotenv==1.0.1
 openai==1.43.0
 google-generativeai==0.7.2

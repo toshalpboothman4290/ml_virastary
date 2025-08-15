@@ -1,6 +1,10 @@
 import os
-from aiogram import Bot, Dispatcher, executor
+import asyncio
+from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
 
 from .database import init_db
@@ -9,7 +13,6 @@ from .handlers import commands as h_commands
 from .handlers import process as h_process
 from .handlers import admin as h_admin
 from .utils.logger_util import setup_logger
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 async def set_commands(bot: Bot):
     commands = [
@@ -18,11 +21,10 @@ async def set_commands(bot: Bot):
         BotCommand(command="openai", description="فقط از هوش مصنوعی OpenAI (Chat GPT) استفاده کن"),
         BotCommand(command="gemini", description="فقط از هوش مصنوعی گوگل (Gemini) استفاده کن"),
         BotCommand(command="help", description="توضیحات کار با بات"),
-        # می‌تونی دستورات دیگه هم اینجا اضافه کنی
     ]
     await bot.set_my_commands(commands)
 
-def main():
+async def main():
     load_dotenv()
     logger = setup_logger()
     init_db()
@@ -31,28 +33,33 @@ def main():
     if not token:
         raise RuntimeError("BOT_TOKEN not set")
 
-    bot = Bot(token=token, parse_mode="HTML")
-    dp = Dispatcher(bot, storage=MemoryStorage())  # <-- add storage
+    bot = Bot(
+        token=token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+    
+    dp = Dispatcher(storage=MemoryStorage())
 
-    h_start.register(dp, bot)
-    h_commands.register(dp)
-    h_admin.register(dp)
+    # Register routers instead of handlers
+    dp.include_router(h_start.router)     # changed: these must now be routers
+    dp.include_router(h_commands.router)
+    dp.include_router(h_admin.router)
     h_process.set_logger(logger)
-    h_process.register(dp, bot, logger)
+    dp.include_router(h_process.router)
 
-    async def on_startup(_):
-        logger.info("Starting workers...")
-        await set_commands(bot)
-        await h_process.queue_manager.start()
-        logger.info("Bot is up.")
+    # Startup logic
+    await bot.delete_webhook(drop_pending_updates=True)
+    await set_commands(bot)
+    logger.info("Starting workers...")
+    await h_process.queue_manager.start()
+    logger.info("Bot is up.")
 
-    async def on_shutdown(_):
+    try:
+        await dp.start_polling(bot)
+    finally:
         logger.info("Stopping workers...")
         await h_process.queue_manager.stop()
         logger.info("Bye.")
 
-    executor.start_polling(dp, skip_updates=True, on_startup=on_startup, on_shutdown=on_shutdown)
-
 if __name__ == "__main__":
-    main()
-
+    asyncio.run(main())
