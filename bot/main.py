@@ -17,7 +17,6 @@ from .utils.logger_util import setup_logger
 async def set_commands(bot: Bot):
     commands = [
         BotCommand(command="instructions", description="تنظیم دستورالعمل ویراستاری"),
-        BotCommand(command="language", description="تنظیم زبان"),
         BotCommand(command="openai", description="فقط از هوش مصنوعی OpenAI (Chat GPT) استفاده کن"),
         BotCommand(command="gemini", description="فقط از هوش مصنوعی گوگل (Gemini) استفاده کن"),
         BotCommand(command="help", description="توضیحات کار با بات"),
